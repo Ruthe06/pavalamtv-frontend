@@ -60,14 +60,13 @@ export default function HostConsole({ initialEventCode, onLeave, isCleanPreview 
   const audioContextRef = useRef(null);
 
   useEffect(() => {
-    // If the event is live and there are active RTMP targets configured
-    if (status === 'live' && (rtmpOutputs.youtube || rtmpOutputs.facebook) && rtmpOutputs.streamKey) {
-      console.log('Initiating direct RTMP stream output push to server...');
+    // If the event is live, start streaming canvas to server for viewers
+    if (status === 'live') {
+      console.log('Initiating direct live stream output push to server...');
       
-      const rtmpUrl = `${rtmpOutputs.rtmpServer}/${rtmpOutputs.streamKey}`;
-      
-      // Notify server to spawn FFmpeg
-      if (socketRef.current) {
+      // Notify server to spawn FFmpeg only if RTMP targets are active
+      if (socketRef.current && (rtmpOutputs.youtube || rtmpOutputs.facebook) && rtmpOutputs.streamKey) {
+        const rtmpUrl = `${rtmpOutputs.rtmpServer}/${rtmpOutputs.streamKey}`;
         socketRef.current.emit('start-rtmp-stream', { rtmpUrl });
       }
 
