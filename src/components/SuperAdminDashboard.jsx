@@ -50,6 +50,7 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
   });
 
   const [connectionError, setConnectionError] = useState(null);
+  const [isRtmpSaved, setIsRtmpSaved] = useState(false);
   const socketRef = useRef(null);
 
   // Camera Operator enrollment URL
@@ -217,6 +218,8 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
         facebook: streamTargets.facebook,
         custom: streamTargets.rtmpServer
       });
+      setIsRtmpSaved(true);
+      setTimeout(() => setIsRtmpSaved(false), 2000);
     }
   };
 
@@ -692,9 +695,13 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
 
               <button
                 type="submit"
-                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-750 font-semibold py-2.5 rounded-xl text-xs tracking-wider uppercase transition-colors"
+                className={`w-full font-semibold py-2.5 rounded-xl text-xs tracking-wider uppercase transition-all duration-200 active:scale-[0.98] ${
+                  isRtmpSaved
+                    ? 'bg-emerald-650 hover:bg-emerald-600 text-white border border-emerald-500'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-750'
+                }`}
               >
-                Update Outbound Streams
+                {isRtmpSaved ? '✓ Outbound Streams Saved!' : 'Update Outbound Streams'}
               </button>
             </form>
           </div>
