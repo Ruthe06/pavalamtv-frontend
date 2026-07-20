@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { Tv, Play, Radio, Calendar, Heart, ShieldAlert } from 'lucide-react';
+import { Tv, Play, Radio, Calendar, Heart, ShieldAlert, Volume2, Maximize2 } from 'lucide-react';
 
 export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [eventCode] = useState(initialEventCode || 'PV-101');
   const [status, setStatus] = useState('idle');
   const [eventTitle, setEventTitle] = useState('PAVALAM TV Live Telecast');
   const [eventDescription, setEventDescription] = useState('Enjoy high quality live streaming.');
-  const [youtubeId, setYoutubeId] = useState('');
   const [connectionError, setConnectionError] = useState(null);
   const [likeCount, setLikeCount] = useState(24);
   const [hasLiked, setHasLiked] = useState(false);
+  const [isStreamActive, setIsStreamActive] = useState(false);
 
   const socketRef = useRef(null);
+  const videoRef = useRef(null);
+  const mediaSourceRef = useRef(null);
+  const sourceBufferRef = useRef(null);
+  const queueRef = useRef([]);
 
   useEffect(() => {
     // Socket initialization
@@ -38,23 +42,84 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
       setStatus(roomState.status);
       setEventTitle(roomState.title || 'PAVALAM TV Live Broadcast');
       setEventDescription(roomState.description || 'Welcome to our multi-camera live telecast.');
-      setYoutubeId(roomState.youtubeId || '');
     });
 
     socket.on('event-status-changed', ({ status: nextStatus, title, description }) => {
       setStatus(nextStatus);
       if (title) setEventTitle(title);
       if (description) setEventDescription(description);
+      if (nextStatus !== 'live') {
+        setIsStreamActive(false);
+      }
     });
 
-    socket.on('youtube-id-updated', (nextYoutubeId) => {
-      setYoutubeId(nextYoutubeId);
+    // Listen to real-time WebM stream chunks relayed from Host Console
+    socket.on('viewer-stream-chunk', (chunk) => {
+      setIsStreamActive(true);
+      const arrayBuffer = new Uint8Array(chunk);
+      const sb = sourceBufferRef.current;
+      
+      if (sb) {
+        if (!sb.updating && queueRef.current.length === 0) {
+          try {
+            sb.appendBuffer(arrayBuffer);
+          } catch (e) {
+            console.error('Error appending WebM stream chunk directly:', e);
+          }
+        } else {
+          queueRef.current.push(arrayBuffer);
+        }
+      }
     });
 
     return () => {
       socket.disconnect();
     };
   }, [eventCode]);
+
+  // Initialize MediaSource Extensions (MSE) pipeline to pipe WebSockets binary chunks to native video player
+  useEffect(() => {
+    if (status !== 'live' || !videoRef.current) return;
+
+    const mediaSource = new MediaSource();
+    mediaSourceRef.current = mediaSource;
+    videoRef.current.src = URL.createObjectURL(mediaSource);
+
+    const onSourceOpen = () => {
+      try {
+        // Create Ebml decoder buffer with vp8 video & opus audio codec support
+        const sb = mediaSource.addSourceBuffer('video/webm; codecs="vp8,opus"');
+        sourceBufferRef.current = sb;
+
+        sb.addEventListener('updateend', () => {
+          if (queueRef.current.length > 0 && !sb.updating) {
+            const nextChunk = queueRef.current.shift();
+            try {
+              sb.appendBuffer(nextChunk);
+            } catch (e) {
+              console.error('Error appending queued chunk:', e);
+            }
+          }
+        });
+      } catch (e) {
+        console.error('Failed to register MediaSource source buffer:', e);
+      }
+    };
+
+    mediaSource.addEventListener('sourceopen', onSourceOpen);
+
+    return () => {
+      if (mediaSource.readyState === 'open') {
+        try {
+          mediaSource.endOfStream();
+        } catch (e) {}
+      }
+      mediaSource.removeEventListener('sourceopen', onSourceOpen);
+      mediaSourceRef.current = null;
+      sourceBufferRef.current = null;
+      queueRef.current = [];
+    };
+  }, [status]);
 
   const handleLike = () => {
     if (!hasLiked) {
@@ -75,12 +140,12 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
             <Radio className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-slate-200">PAVALAM TV - Live Watch Portal</h1>
+            <h1 className="text-base font-bold text-slate-200 font-sans tracking-tight">PAVALAM TV - Live Watch Portal</h1>
           </div>
         </div>
         <button
           onClick={onLeave}
-          className="text-xs text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700 bg-slate-900 px-4 py-2 rounded-xl font-medium transition-colors"
+          className="text-xs text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700 bg-slate-900 px-4 py-2 rounded-xl font-medium transition-all"
         >
           Exit Watch Page
         </button>
@@ -98,17 +163,25 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
         
         {/* Video Player Frame */}
         <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden aspect-video shadow-2xl relative">
-          {status === 'live' && youtubeId ? (
-            <iframe
-              width="100%"
-              height="100%"
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&modestbranding=1&rel=0&showinfo=0`}
-              title="PAVALAM TV Live Player"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              className="w-full h-full"
-            />
+          {status === 'live' ? (
+            <div className="w-full h-full bg-black relative">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                controls
+                className="w-full h-full object-contain"
+              />
+              
+              {!isStreamActive && (
+                /* Connecting Stream State */
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-slate-950/90 z-10">
+                  <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Connecting Live Stream...</span>
+                  <p className="text-[11px] text-slate-500 mt-1.5">Waiting for the host to send live video packets.</p>
+                </div>
+              )}
+            </div>
           ) : (
             /* Broadcast Offline State */
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-slate-950">
@@ -133,7 +206,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                 {status === 'live' ? (
                   <>
                     <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping"></span>
-                    LIVE STREAMING
+                    LIVE WATCH PORTAL
                   </>
                 ) : 'OFFLINE'}
               </span>
@@ -145,7 +218,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
           </div>
 
           {/* User engagement widgets */}
-          <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-3 border-t md:border-t-0 border-slate-850 pt-4 md:pt-0">
+          <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-3 border-t md:border-t-0 border-slate-850 pt-4 md:pt-0 font-sans">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-500" />
               <span className="text-xs text-slate-400">Live Broadcast Portal</span>
