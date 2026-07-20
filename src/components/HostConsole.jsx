@@ -47,7 +47,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
 
   useEffect(() => {
     // Socket initialization
-    const serverUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+    const serverUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
     const socket = io(serverUrl);
     socketRef.current = socket;
 

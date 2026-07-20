@@ -146,8 +146,7 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
     setStatusMessage('Connecting to signaling server...');
 
     // Socket.io initialization
-    // Support connecting back to the server running on the same host address or localhost
-    const serverUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+    const serverUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
     const socket = io(serverUrl);
     socketRef.current = socket;
 
