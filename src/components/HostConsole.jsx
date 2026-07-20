@@ -109,7 +109,7 @@ export default function HostConsole({ initialEventCode, onLeave, isCleanPreview 
           // Start MediaRecorder in WebM format to stream back to Node.js
           const recorder = new MediaRecorder(compositeStream, {
             mimeType: 'video/webm;codecs=vp8,opus',
-            videoBitsPerSecond: 2500000 // 2.5 Mbps
+            videoBitsPerSecond: 300000 // 300 Kbps - optimized for free tier proxy limits
           });
           rtmpRecorderRef.current = recorder;
 
