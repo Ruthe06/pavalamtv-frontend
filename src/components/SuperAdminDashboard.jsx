@@ -63,7 +63,7 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
     // Setup Socket connection
     const rawUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
     const serverUrl = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl;
-    const socket = io(serverUrl, { transports: ['websocket', 'polling'], upgrade: true });
+    const socket = io(serverUrl, { transports: ['polling', 'websocket'], upgrade: true });
     socketRef.current = socket;
 
     socket.on('connect', () => {
