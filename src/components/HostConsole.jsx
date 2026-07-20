@@ -36,6 +36,24 @@ export default function HostConsole({ initialEventCode, onLeave }) {
   const peerConnectionsRef = useRef({}); // cameraSocketId -> RTCPeerConnection
   const streamObjectsRef = useRef({}); // cameraSocketId -> MediaStream (WebRTC)
   const videoElementsRef = useRef({}); // cameraSocketId -> HTMLVideoElement refs
+
+  // Refs to allow the draw loop (compositeCanvas) to always read the latest state
+  // without triggering a socket reconnect via useEffect dependencies.
+  const activeLayoutRef = useRef(activeLayout);
+  const primaryCamIdRef = useRef(primaryCamId);
+  const secondaryCamIdRef = useRef(secondaryCamId);
+  const tickerRef = useRef(ticker);
+  const lowerThirdRef = useRef(lowerThird);
+  const graphicsRef = useRef(graphics);
+  const camerasRef = useRef(cameras);
+
+  useEffect(() => { activeLayoutRef.current = activeLayout; }, [activeLayout]);
+  useEffect(() => { primaryCamIdRef.current = primaryCamId; }, [primaryCamId]);
+  useEffect(() => { secondaryCamIdRef.current = secondaryCamId; }, [secondaryCamId]);
+  useEffect(() => { tickerRef.current = ticker; }, [ticker]);
+  useEffect(() => { lowerThirdRef.current = lowerThird; }, [lowerThird]);
+  useEffect(() => { graphicsRef.current = graphics; }, [graphics]);
+  useEffect(() => { camerasRef.current = cameras; }, [cameras]);
   
   // Canvas composition references
   const canvasRef = useRef(null);
@@ -138,7 +156,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
       Object.keys(peerConnectionsRef.current).forEach(cleanupCameraConnection);
       stopRecording();
     };
-  }, [eventCode, activeLayout, primaryCamId, secondaryCamId, ticker, lowerThird, graphics]);
+  }, [eventCode]);
 
   // Clean up a closed camera connection
   const cleanupCameraConnection = (cameraId) => {
@@ -245,7 +263,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
       if (hasStream) {
         ctx.save();
         // Mirrors camera feed nicely if front cam
-        if (cameras[camId]?.isFront) {
+        if (camerasRef.current[camId]?.isFront) {
           ctx.translate(x + width, y);
           ctx.scale(-1, 1);
           ctx.drawImage(videoEl, 0, 0, width, height);
@@ -290,15 +308,15 @@ export default function HostConsole({ initialEventCode, onLeave }) {
     };
 
     // Render Scene Layouts
-    if (activeLayout === 'SOLO' && primaryCamId) {
-      drawFeed(primaryCamId, 0, 0, w, h, cameras[primaryCamId]?.name);
-    } else if (activeLayout === 'SPLIT') {
-      const leftId = primaryCamId;
-      const rightId = secondaryCamId || Object.keys(cameras).find(id => id !== leftId);
+    if (activeLayoutRef.current === 'SOLO' && primaryCamIdRef.current) {
+      drawFeed(primaryCamIdRef.current, 0, 0, w, h, camerasRef.current[primaryCamIdRef.current]?.name);
+    } else if (activeLayoutRef.current === 'SPLIT') {
+      const leftId = primaryCamIdRef.current;
+      const rightId = secondaryCamIdRef.current || Object.keys(camerasRef.current).find(id => id !== leftId);
 
-      if (leftId) drawFeed(leftId, 0, 0, w / 2, h, cameras[leftId]?.name);
+      if (leftId) drawFeed(leftId, 0, 0, w / 2, h, camerasRef.current[leftId]?.name);
       if (rightId) {
-        drawFeed(rightId, w / 2, 0, w / 2, h, cameras[rightId]?.name);
+        drawFeed(rightId, w / 2, 0, w / 2, h, camerasRef.current[rightId]?.name);
       } else {
         ctx.fillStyle = '#0f172a';
         ctx.fillRect(w / 2, 0, w / 2, h);
@@ -307,11 +325,11 @@ export default function HostConsole({ initialEventCode, onLeave }) {
         ctx.textAlign = 'center';
         ctx.fillText('WAITING FOR CAMERA 2...', w * 0.75, h / 2);
       }
-    } else if (activeLayout === 'PIP') {
-      const mainId = primaryCamId;
-      const pipId = secondaryCamId || Object.keys(cameras).find(id => id !== mainId);
+    } else if (activeLayoutRef.current === 'PIP') {
+      const mainId = primaryCamIdRef.current;
+      const pipId = secondaryCamIdRef.current || Object.keys(camerasRef.current).find(id => id !== mainId);
 
-      if (mainId) drawFeed(mainId, 0, 0, w, h, cameras[mainId]?.name);
+      if (mainId) drawFeed(mainId, 0, 0, w, h, camerasRef.current[mainId]?.name);
       if (pipId) {
         // Draw nested smaller camera frame on top right
         ctx.strokeStyle = '#3b82f6';
@@ -321,12 +339,12 @@ export default function HostConsole({ initialEventCode, onLeave }) {
         const px = w - pw - 30;
         const py = 30;
         ctx.strokeRect(px, py, pw, ph);
-        drawFeed(pipId, px, py, pw, ph, cameras[pipId]?.name);
+        drawFeed(pipId, px, py, pw, ph, camerasRef.current[pipId]?.name);
       }
     }
 
     // --- Overlay Logo ---
-    if (graphics.logoEnabled && graphics.logo) {
+    if (graphicsRef.current.logoEnabled && graphicsRef.current.logo) {
       const logoImg = new Image();
       logoImg.src = graphics.logo;
       try {
@@ -340,7 +358,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
     }
 
     // --- Overlay Watermark ---
-    if (graphics.watermark) {
+    if (graphicsRef.current.watermark) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.font = '12px Outfit';
       ctx.textAlign = 'right';
@@ -348,7 +366,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
     }
 
     // --- Overlay Lower Third ---
-    if (lowerThird.enabled) {
+    if (lowerThirdRef.current.enabled) {
       const ltx = 50;
       const lty = h - 160;
       const ltw = 450;
@@ -364,38 +382,38 @@ export default function HostConsole({ initialEventCode, onLeave }) {
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 18px Outfit, sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText(lowerThird.name, ltx + 24, lty + 30);
+      ctx.fillText(lowerThirdRef.current.name, ltx + 24, lty + 30);
 
       ctx.fillStyle = '#94a3b8';
       ctx.font = '14px Outfit, sans-serif';
-      ctx.fillText(lowerThird.role, ltx + 24, lty + 55);
+      ctx.fillText(lowerThirdRef.current.role, ltx + 24, lty + 55);
     }
 
     // --- Overlay Ticker (Running Text) ---
-    if (ticker.enabled && ticker.text) {
+    if (tickerRef.current.enabled && tickerRef.current.text) {
       const tickerHeight = 40;
       const tickerY = h - tickerHeight;
       
       // Draw background bar
-      ctx.fillStyle = ticker.bg || '#ef4444';
+      ctx.fillStyle = tickerRef.current.bg || '#ef4444';
       ctx.fillRect(0, tickerY, w, tickerHeight);
 
       // Text scrolling math
-      ctx.fillStyle = ticker.color || '#ffffff';
+      ctx.fillStyle = tickerRef.current.color || '#ffffff';
       ctx.font = 'bold 14px Outfit, sans-serif';
       ctx.textAlign = 'left';
       
       const charWidth = 9.5; // Average size multiplier
-      const textWidth = ticker.text.length * charWidth;
+      const textWidth = tickerRef.current.text.length * charWidth;
       const timeMs = Date.now();
-      const speedCoeff = (35 - (ticker.speed || 15)) * 0.1; // mapping slider to speed
+      const speedCoeff = (35 - (tickerRef.current.speed || 15)) * 0.1; // mapping slider to speed
       const offset = (timeMs * speedCoeff) % (textWidth + w);
       const textX = w - offset;
 
-      ctx.fillText(ticker.text, textX, tickerY + 24);
+      ctx.fillText(tickerRef.current.text, textX, tickerY + 24);
       // Double render to create continuous running text effect if text is shorter
       if (textX + textWidth < w) {
-        ctx.fillText(ticker.text, textX + textWidth + 150, tickerY + 24);
+        ctx.fillText(tickerRef.current.text, textX + textWidth + 150, tickerY + 24);
       }
     }
 
