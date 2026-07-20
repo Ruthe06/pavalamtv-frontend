@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CameraOperator from './components/CameraOperator';
 import HostConsole from './components/HostConsole';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
+import PublicWatchPortal from './components/PublicWatchPortal';
 import { Tv, Shield, Users, Radio, Key, Eye, EyeOff } from 'lucide-react';
 
 export default function App() {
@@ -24,6 +25,9 @@ export default function App() {
     } else if (urlRole === 'preview' && urlCode) {
       setEventCode(urlCode);
       setSelectedRole('preview');
+    } else if (urlRole === 'viewer' && urlCode) {
+      setEventCode(urlCode);
+      setSelectedRole('viewer');
     } else if (path === '/superadmin') {
       setEventCode('PV-101');
       setAuthPassword('admin123');
@@ -75,6 +79,10 @@ export default function App() {
 
   if (selectedRole === 'preview' && eventCode) {
     return <HostConsole initialEventCode={eventCode} onLeave={resetState} isCleanPreview={true} />;
+  }
+
+  if (selectedRole === 'viewer' && eventCode) {
+    return <PublicWatchPortal initialEventCode={eventCode} onLeave={resetState} />;
   }
 
   if (selectedRole === 'host' && eventCode && authPassword.toLowerCase() === 'host123') {

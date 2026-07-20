@@ -28,6 +28,7 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
   // Suddenly News Alerts (Flash News)
   const [flashNewsText, setFlashNewsText] = useState('');
   const [flashNewsEnabled, setFlashNewsEnabled] = useState(false);
+  const [youtubeId, setYoutubeId] = useState('');
 
   // Streaming targets
   const [streamTargets, setStreamTargets] = useState({
@@ -55,6 +56,8 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
 
   // Camera Operator enrollment URL
   const cameraJoinUrl = `${window.location.origin}/?role=camera&code=${eventCode}`;
+  const viewerWatchUrl = `${window.location.origin}/?role=viewer&code=${eventCode}`;
+  const [copiedWatchLink, setCopiedWatchLink] = useState(false);
 
   useEffect(() => {
     // Setup Socket connection
@@ -101,6 +104,9 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
         facebook: room.rtmpOutputs.facebook,
         rtmpServer: room.rtmpOutputs.custom || prev.rtmpServer
       }));
+      if (room.youtubeId) {
+        setYoutubeId(room.youtubeId);
+      }
     });
 
     socket.on('cameras-updated', (updatedCameras) => {
@@ -217,8 +223,11 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
       socketRef.current.emit('update-rtmp-outputs', {
         youtube: streamTargets.youtube,
         facebook: streamTargets.facebook,
-        custom: streamTargets.rtmpServer
+        custom: streamTargets.rtmpServer,
+        rtmpServer: streamTargets.rtmpServer,
+        streamKey: streamTargets.streamKey
       });
+      socketRef.current.emit('update-youtube-id', youtubeId);
       setIsRtmpSaved(true);
       setTimeout(() => setIsRtmpSaved(false), 2000);
     }
@@ -228,6 +237,12 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
     navigator.clipboard.writeText(cameraJoinUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const copyWatchLink = () => {
+    navigator.clipboard.writeText(viewerWatchUrl);
+    setCopiedWatchLink(true);
+    setTimeout(() => setCopiedWatchLink(false), 2000);
   };
 
   return (
@@ -340,6 +355,29 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
 
             <div className="text-[10px] text-slate-500">
               Alternatively, operators can manually join by entering Code: <strong className="text-slate-300 font-mono">{eventCode}</strong>
+            </div>
+          </div>
+
+          {/* Copy viewer live watch link component */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl text-center">
+            <h2 className="text-sm font-semibold uppercase text-slate-400 tracking-wider flex items-center justify-center gap-2">
+              <Tv className="w-4 h-4 text-rose-500" /> Public Viewer Watch Link
+            </h2>
+            <p className="text-xs text-slate-500">Share this link with your public audience. They can watch your live broadcast directly in their browser with player tools (Pause, Fullscreen).</p>
+            
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={viewerWatchUrl}
+                className="flex-1 bg-slate-950 border border-slate-850 text-slate-400 text-xs px-3 rounded-xl py-2.5 truncate font-mono select-all"
+              />
+              <button
+                onClick={copyWatchLink}
+                className="bg-rose-600 hover:bg-rose-500 text-white rounded-xl px-4 flex items-center justify-center transition-colors"
+              >
+                {copiedWatchLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
@@ -691,6 +729,20 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
                     onChange={(e) => setStreamTargets({ ...streamTargets, streamKey: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-400 focus:outline-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-1">YouTube Live Video ID (For Watch Portal Player)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. dQw4w9WgXcQ (copied from watch link)"
+                    value={youtubeId}
+                    onChange={(e) => setYoutubeId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-400 focus:outline-none placeholder-slate-600"
+                  />
+                  <p className="text-[9px] text-slate-550 leading-relaxed mt-1">
+                    Enter the unique letters after <code className="text-blue-400 font-mono">v=</code> in your YouTube live stream link to embed the stream player.
+                  </p>
                 </div>
               </div>
 
