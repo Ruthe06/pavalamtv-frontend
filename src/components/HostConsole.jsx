@@ -66,8 +66,9 @@ export default function HostConsole({ initialEventCode, onLeave }) {
 
   useEffect(() => {
     // Socket initialization
-    const serverUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
-    const socket = io(serverUrl, { transports: ['websocket'] });
+    const rawUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
+    const serverUrl = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl;
+    const socket = io(serverUrl, { transports: ['websocket', 'polling'], upgrade: true });
     socketRef.current = socket;
 
     socket.on('connect', () => {
