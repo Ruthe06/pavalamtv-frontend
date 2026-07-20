@@ -49,6 +49,7 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
     networkQuality: 'Excellent'
   });
 
+  const [connectionError, setConnectionError] = useState(null);
   const socketRef = useRef(null);
 
   // Camera Operator enrollment URL
@@ -59,6 +60,14 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
     const serverUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
     const socket = io(serverUrl);
     socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setConnectionError(null);
+    });
+
+    socket.on('connect_error', (err) => {
+      setConnectionError(`Connection error: ${err.message || 'Server Unreachable'}`);
+    });
 
     socket.emit('join-room', {
       eventCode,
@@ -263,6 +272,13 @@ export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
           </button>
         </div>
       </header>
+
+      {connectionError && (
+        <div className="bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs font-semibold px-8 py-3 flex items-center justify-center gap-2">
+          <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+          <span>{connectionError}. Make sure your Render backend is active and Netlify environment variables are fully built.</span>
+        </div>
+      )}
 
       {/* Main Grid content */}
       <main className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-8 max-w-[1600px] mx-auto w-full">

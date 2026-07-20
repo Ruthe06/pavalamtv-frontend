@@ -19,6 +19,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
   const [lowerThird, setLowerThird] = useState({ name: 'Speaker Name', role: 'Speaker Role', template: 'default', enabled: false });
   const [graphics, setGraphics] = useState({ logo: '', watermark: true, logoEnabled: true });
   const [status, setStatus] = useState('idle');
+  const [connectionError, setConnectionError] = useState(null);
 
   // Input states for updating lower thirds
   const [ltName, setLtName] = useState('Priest Soundararajan');
@@ -50,6 +51,14 @@ export default function HostConsole({ initialEventCode, onLeave }) {
     const serverUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
     const socket = io(serverUrl);
     socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setConnectionError(null);
+    });
+
+    socket.on('connect_error', (err) => {
+      setConnectionError(`Connection error: ${err.message || 'Server Unreachable'}`);
+    });
 
     socket.emit('join-room', {
       eventCode,
@@ -609,6 +618,13 @@ export default function HostConsole({ initialEventCode, onLeave }) {
           </button>
         </div>
       </header>
+
+      {connectionError && (
+        <div className="bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs font-semibold px-8 py-3 flex items-center justify-center gap-2">
+          <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+          <span>{connectionError}. Make sure your Render backend is active and Netlify environment variables are fully built.</span>
+        </div>
+      )}
 
       {/* Console Workspace Layout */}
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-4 gap-6 p-8 max-w-[1600px] mx-auto w-full">
