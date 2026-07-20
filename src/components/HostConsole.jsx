@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import { Video, VideoOff, Volume2, VolumeX, Grid, Layers, Sparkles, Tv, HelpCircle, Download, Square, Play, ShieldAlert, MonitorPlay, Maximize2, Minimize2 } from 'lucide-react';
 
-export default function HostConsole({ initialEventCode, onLeave }) {
+export default function HostConsole({ initialEventCode, onLeave, isCleanPreview = false }) {
   const [eventCode] = useState(initialEventCode || 'PV-101');
   const [cameras, setCameras] = useState({});
   const [activeLayout, setActiveLayout] = useState('SOLO'); // SOLO, SPLIT, PIP
@@ -667,6 +667,40 @@ export default function HostConsole({ initialEventCode, onLeave }) {
     return `${m}:${s}`;
   };
 
+  if (isCleanPreview) {
+    return (
+      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center">
+        {/* Compositor program output canvas */}
+        <canvas
+          ref={canvasRef}
+          width={1920}
+          height={1080}
+          className="w-full h-full object-contain"
+        />
+
+        {/* Hidden WebRTC raw video buffers */}
+        <div style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0.01, pointerEvents: 'none', zIndex: -100 }}>
+          {Object.keys(cameras).map((camId) => (
+            <video
+              key={camId}
+              ref={(el) => {
+                if (el) {
+                  videoElementsRef.current[camId] = el;
+                  if (streamObjectsRef.current[camId]) {
+                    el.srcObject = streamObjectsRef.current[camId];
+                  }
+                }
+              }}
+              autoPlay
+              playsInline
+              muted={false} // Allow audio in clean preview
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-slate-950 text-slate-100 min-h-screen">
       {/* Hidden WebRTC raw video buffers */}
@@ -773,7 +807,15 @@ export default function HostConsole({ initialEventCode, onLeave }) {
                 <MonitorPlay className="w-4 h-4 text-blue-500" /> LIVE PROGRAM CANVAS (1080P COMPOSITE)
               </span>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                <button
+                  type="button"
+                  onClick={() => window.open(`/?role=preview&code=${eventCode}`, '_blank')}
+                  className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-md border border-indigo-500/20 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all active:scale-[0.97]"
+                >
+                  <Maximize2 className="w-3 h-3" /> Clean Feed (New Tab)
+                </button>
+
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md border ${
                   status === 'live' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-slate-950 border-slate-850 text-slate-500'
                 }`}>
                   {status === 'live' ? 'BROADCASTING' : 'PROGRAM PREVIEW'}

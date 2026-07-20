@@ -21,6 +21,9 @@ export default function App() {
     if (urlRole === 'camera' && urlCode) {
       setEventCode(urlCode);
       setSelectedRole('camera');
+    } else if (urlRole === 'preview' && urlCode) {
+      setEventCode(urlCode);
+      setSelectedRole('preview');
     } else if (path === '/superadmin') {
       setEventCode('PV-101');
       setAuthPassword('admin123');
@@ -68,6 +71,10 @@ export default function App() {
   // 1. Render Active Role Dashboards
   if (selectedRole === 'camera' && eventCode) {
     return <CameraOperator initialEventCode={eventCode} onLeave={resetState} />;
+  }
+
+  if (selectedRole === 'preview' && eventCode) {
+    return <HostConsole initialEventCode={eventCode} onLeave={resetState} isCleanPreview={true} />;
   }
 
   if (selectedRole === 'host' && eventCode && authPassword.toLowerCase() === 'host123') {
