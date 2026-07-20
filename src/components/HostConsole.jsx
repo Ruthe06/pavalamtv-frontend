@@ -19,6 +19,7 @@ export default function HostConsole({ initialEventCode, onLeave }) {
   const [lowerThird, setLowerThird] = useState({ name: 'Speaker Name', role: 'Speaker Role', template: 'default', enabled: false });
   const [graphics, setGraphics] = useState({ logo: '', watermark: true, logoEnabled: true });
   const [status, setStatus] = useState('idle');
+  const [rtmpOutputs, setRtmpOutputs] = useState({ youtube: false, facebook: false, rtmpServer: '', streamKey: '' });
   const [connectionError, setConnectionError] = useState(null);
 
   // Input states for updating lower thirds
@@ -54,6 +55,113 @@ export default function HostConsole({ initialEventCode, onLeave }) {
   useEffect(() => { lowerThirdRef.current = lowerThird; }, [lowerThird]);
   useEffect(() => { graphicsRef.current = graphics; }, [graphics]);
   useEffect(() => { camerasRef.current = cameras; }, [cameras]);
+  
+  const rtmpRecorderRef = useRef(null);
+  const audioContextRef = useRef(null);
+
+  useEffect(() => {
+    // If the event is live and there are active RTMP targets configured
+    if (status === 'live' && (rtmpOutputs.youtube || rtmpOutputs.facebook) && rtmpOutputs.streamKey) {
+      console.log('Initiating direct RTMP stream output push to server...');
+      
+      const rtmpUrl = `${rtmpOutputs.rtmpServer}/${rtmpOutputs.streamKey}`;
+      
+      // Notify server to spawn FFmpeg
+      if (socketRef.current) {
+        socketRef.current.emit('start-rtmp-stream', { rtmpUrl });
+      }
+
+      // Mix Audio and Video from Canvas
+      try {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const canvasStream = canvas.captureStream(30); // 30 fps
+          const compositeStream = new MediaStream();
+          
+          // Add video track
+          compositeStream.addTrack(canvasStream.getVideoTracks()[0]);
+
+          // Mix audios using Web Audio API if available
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            const audioCtx = new AudioContextClass();
+            audioContextRef.current = audioCtx;
+            const dest = audioCtx.createMediaStreamDestination();
+            let hasAudioSources = false;
+
+            Object.keys(streamObjectsRef.current).forEach(camId => {
+              const stream = streamObjectsRef.current[camId];
+              if (stream && stream.getAudioTracks().length > 0) {
+                try {
+                  const source = audioCtx.createMediaStreamSource(stream);
+                  source.connect(dest);
+                  hasAudioSources = true;
+                } catch (e) {
+                  console.warn(`Could not connect audio stream for camera ${camId}:`, e);
+                }
+              }
+            });
+
+            if (hasAudioSources && dest.stream.getAudioTracks().length > 0) {
+              compositeStream.addTrack(dest.stream.getAudioTracks()[0]);
+            }
+          }
+
+          // Start MediaRecorder in WebM format to stream back to Node.js
+          const recorder = new MediaRecorder(compositeStream, {
+            mimeType: 'video/webm;codecs=vp8,opus',
+            videoBitsPerSecond: 2500000 // 2.5 Mbps
+          });
+          rtmpRecorderRef.current = recorder;
+
+          recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0 && socketRef.current && socketRef.current.connected) {
+              socketRef.current.emit('stream-chunk', event.data);
+            }
+          };
+
+          recorder.start(1000); // Send WebM chunks every 1 second
+          console.log('Direct RTMP canvas recorder started');
+        }
+      } catch (err) {
+        console.error('Error starting direct RTMP canvas streaming MediaRecorder:', err);
+      }
+    } else {
+      // Clean up and stop direct streaming
+      if (rtmpRecorderRef.current) {
+        try {
+          rtmpRecorderRef.current.stop();
+        } catch (e) {}
+        rtmpRecorderRef.current = null;
+      }
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close();
+        } catch (e) {}
+        audioContextRef.current = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.emit('stop-rtmp-stream');
+      }
+      console.log('Direct RTMP stream push stopped');
+    }
+
+    return () => {
+      if (rtmpRecorderRef.current) {
+        try {
+          rtmpRecorderRef.current.stop();
+        } catch (e) {}
+      }
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close();
+        } catch (e) {}
+      }
+      if (socketRef.current) {
+        socketRef.current.emit('stop-rtmp-stream');
+      }
+    };
+  }, [status, rtmpOutputs]);
   
   // Canvas composition references
   const canvasRef = useRef(null);
@@ -92,10 +200,17 @@ export default function HostConsole({ initialEventCode, onLeave }) {
       setLtName(roomState.lowerThird.name);
       setLtRole(roomState.lowerThird.role);
       setLtEnabled(roomState.lowerThird.enabled);
+      if (roomState.rtmpOutputs) {
+        setRtmpOutputs(roomState.rtmpOutputs);
+      }
       
       const incomingCams = roomState.cameras || {};
       setCameras(incomingCams);
       initializeWebRTCConnections(incomingCams);
+    });
+
+    socket.on('rtmp-outputs-updated', (updatedRtmp) => {
+      setRtmpOutputs(updatedRtmp);
     });
 
     socket.on('cameras-updated', (updatedCameras) => {
