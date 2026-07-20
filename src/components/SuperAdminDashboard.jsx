@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { Radio, Settings, BarChart2, Cpu, HardDrive, Network, Users, Play, Square, Layers, Sparkles, Image, AlertCircle, Camera, Copy, Check, HelpCircle, ExternalLink, Megaphone } from 'lucide-react';
+import { Radio, Settings, BarChart2, Cpu, HardDrive, Network, Users, Play, Square, Layers, Sparkles, Image, AlertCircle, Camera, Copy, Check, HelpCircle, ExternalLink, Megaphone, Tv } from 'lucide-react';
 
 export default function SuperAdminDashboard({ initialEventCode, onLeave }) {
   const [eventCode] = useState(initialEventCode || 'PV-101');
