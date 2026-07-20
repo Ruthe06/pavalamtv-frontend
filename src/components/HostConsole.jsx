@@ -143,6 +143,12 @@ export default function HostConsole({ initialEventCode, onLeave }) {
     if (videoElementsRef.current[cameraId]) {
       delete videoElementsRef.current[cameraId];
     }
+    if (primaryCamId === cameraId) {
+      setPrimaryCamId(null);
+    }
+    if (secondaryCamId === cameraId) {
+      setSecondaryCamId(null);
+    }
     setCameras(prev => {
       const copy = { ...prev };
       delete copy[cameraId];
