@@ -147,7 +147,7 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
 
     // Socket.io initialization
     const serverUrl = import.meta.env.VITE_BACKEND_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`);
-    const socket = io(serverUrl);
+    const socket = io(serverUrl, { transports: ['websocket'] });
     socketRef.current = socket;
 
     socket.on('connect', () => {
