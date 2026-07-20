@@ -522,7 +522,7 @@ export default function HostConsole({ initialEventCode, onLeave, isCleanPreview 
       const charWidth = 9.5; // Average size multiplier
       const textWidth = tickerRef.current.text.length * charWidth;
       const timeMs = Date.now();
-      const speedCoeff = (35 - (tickerRef.current.speed || 15)) * 0.1; // mapping slider to speed
+      const speedCoeff = (35 - (tickerRef.current.speed || 15)) * 0.02; // mapping slider to speed
       const offset = (timeMs * speedCoeff) % (textWidth + w);
       const textX = w - offset;
 
