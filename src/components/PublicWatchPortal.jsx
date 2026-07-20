@@ -111,6 +111,8 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
     const onSourceOpen = () => {
       try {
+        if (mediaSource.sourceBuffers.length > 0) return; // Prevent duplicate additions
+        
         // Create Ebml decoder buffer with vp8 video & opus audio codec support
         const sb = mediaSource.addSourceBuffer('video/webm; codecs="vp8,opus"');
         sourceBufferRef.current = sb;
