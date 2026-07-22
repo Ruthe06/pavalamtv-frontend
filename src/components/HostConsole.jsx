@@ -106,6 +106,26 @@ export default function HostConsole({ initialEventCode, onLeave, isCleanPreview 
             }
           }
 
+          // If no active audio tracks are present, create a silent dummy audio track to satisfy VP8/Opus recording requirements
+          if (compositeStream.getAudioTracks().length === 0) {
+            try {
+              const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+              if (AudioContextClass) {
+                const silentCtx = new AudioContextClass();
+                const oscillator = silentCtx.createOscillator();
+                const gainNode = silentCtx.createGain();
+                gainNode.gain.value = 0; // Completely silent
+                oscillator.connect(gainNode);
+                const silentDest = silentCtx.createMediaStreamDestination();
+                gainNode.connect(silentDest);
+                oscillator.start();
+                compositeStream.addTrack(silentDest.stream.getAudioTracks()[0]);
+              }
+            } catch (e) {
+              console.warn('Failed to generate silent dummy audio track fallback:', e);
+            }
+          }
+
           // Start MediaRecorder in WebM format to stream back to Node.js
           const recorder = new MediaRecorder(compositeStream, {
             mimeType: 'video/webm;codecs=vp8,opus',
