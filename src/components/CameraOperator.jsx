@@ -411,17 +411,6 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
             </div>
 
             <form onSubmit={handleJoin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Event Access Code</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. PV-101"
-                  value={eventCode}
-                  onChange={(e) => setEventCode(e.target.value.toUpperCase())}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
-                />
-              </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Camera Operator Name</label>
