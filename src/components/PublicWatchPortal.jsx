@@ -20,6 +20,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [selectedCameraId, setSelectedCameraId] = useState(null);
   const [rotationAngle, setRotationAngle] = useState(0);
   const [isMirrored, setIsMirrored] = useState(false);
+  const [showCamDropdown, setShowCamDropdown] = useState(false);
 
   // Live Wishes / Chat Board
   const [wishes, setWishes] = useState([
@@ -358,6 +359,42 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                     transition: 'transform 0.3s ease-out'
                   }}
                 />
+
+                {/* Floating Camera Selector inside video */}
+                <div className="absolute top-4 left-4 z-20">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowCamDropdown(!showCamDropdown)}
+                      className="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-white/10 px-3.5 py-2.5 rounded-2xl text-xs font-extrabold text-slate-200 transition-all hover:bg-slate-900 active:scale-95 shadow-xl"
+                    >
+                      <span>🎥 {cameras[selectedCameraId]?.name || 'Switch Angle'}</span>
+                      <span className="text-[10px] text-slate-500">▼</span>
+                    </button>
+                    
+                    {showCamDropdown && (
+                      <div className="absolute left-0 mt-2 w-48 bg-slate-950/90 backdrop-blur-lg border border-slate-800 rounded-2xl shadow-2xl p-1.5 flex flex-col gap-1 z-30 animate-fade-in">
+                        {Object.keys(cameras).filter(camId => !cameras[camId]?.hidden).map((camId) => (
+                          <button
+                            key={camId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCameraId(camId);
+                              setShowCamDropdown(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs transition-colors flex flex-col gap-0.5 ${
+                              selectedCameraId === camId
+                                ? 'bg-rose-500/20 text-rose-450 font-bold'
+                                : 'text-slate-350 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span className="truncate">🎥 {cameras[camId]?.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 
                 {!isStreamActive && (
                   /* Connecting Stream State */
@@ -382,36 +419,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
             )}
           </div>
 
-          {/* Available Camera Angles switcher board */}
-          {status === 'live' && (
-            <div className="bg-[#0c1322] border border-slate-850 rounded-3xl p-5 space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Video className="w-4 h-4 text-rose-500" /> Switch Camera Angles
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {Object.keys(cameras).length === 0 ? (
-                  <span className="col-span-full text-xs text-slate-500 text-center py-2">
-                    No active cameras online. Waiting for operators to stream.
-                  </span>
-                ) : (
-                  Object.keys(cameras).filter(camId => !cameras[camId]?.hidden).map((camId) => (
-                    <button
-                      key={camId}
-                      onClick={() => setSelectedCameraId(camId)}
-                      className={`flex flex-col items-start gap-1 p-3 rounded-2xl border transition-all text-left ${
-                        selectedCameraId === camId
-                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-lg'
-                          : 'bg-slate-950/60 border-slate-850 text-slate-400 hover:border-slate-800 hover:text-slate-350'
-                      }`}
-                    >
-                      <span className="text-xs font-bold truncate w-full">🎥 {cameras[camId]?.name}</span>
-                      <span className="text-[10px] text-slate-500 truncate w-full">Network: {cameras[camId]?.network}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+
 
           {/* Stream Details Card */}
           <div className="w-full bg-[#0d1524] border border-slate-850 rounded-3xl p-6 space-y-4 shadow-xl">
