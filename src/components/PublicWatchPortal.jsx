@@ -26,7 +26,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   // Overlay state sync (TV Logo, Ticker news box, and Lower Thirds)
   const [logoEnabled, setLogoEnabled] = useState(true);
   const [logoText, setLogoText] = useState('PAVALAM TV');
-  const [ticker, setTicker] = useState({ enabled: true, text: 'Welcome to PAVALAM TV Devotional Broadcast' });
+  const [ticker, setTicker] = useState({ enabled: false, text: '' });
   const [lowerThird, setLowerThird] = useState({ enabled: false, name: '', role: '' });
 
   // Live Wishes / Chat Board
