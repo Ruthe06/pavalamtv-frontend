@@ -315,7 +315,9 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                   controls
                   className="w-full h-full object-contain"
                   style={{
-                    transform: `rotate(${rotationAngle}deg)`,
+                    transform: `rotate(${rotationAngle}deg) ${
+                      rotationAngle === 90 || rotationAngle === 270 ? 'scale(1.778)' : 'scale(1)'
+                    }`,
                     transition: 'transform 0.3s ease-out'
                   }}
                 />

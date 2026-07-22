@@ -83,6 +83,7 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
           facingMode: currentFacingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 },
+          aspectRatio: { ideal: 1.7777777778 }, // Force landscape 16:9 ratio
           frameRate: { ideal: 30 }
         } : false,
         audio: audioEnabled
