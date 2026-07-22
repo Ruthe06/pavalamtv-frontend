@@ -196,33 +196,17 @@ export default function App() {
         </div>
 
         {/* Portal option cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          {/* Host console option */}
-          <button
-            onClick={() => handleRoleSelection('host')}
-            className="group bg-slate-900 border border-slate-800 hover:border-indigo-500/30 p-6 rounded-2xl text-left space-y-4 transition-all hover:shadow-2xl hover:shadow-indigo-500/5 hover:-translate-y-1"
-          >
-            <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center group-hover:bg-indigo-650 group-hover:text-white transition-all">
-              <Tv className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-200 group-hover:text-indigo-400 transition-colors">Host Mixer</h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Live camera switcher grid, audio mixer volume, program canvas preview, Lower Third controls, and local broadcast recording.
-              </p>
-            </div>
-          </button>
-
+        <div className="max-w-md mx-auto">
           {/* Camera Operator option */}
           <button
             onClick={() => handleRoleSelection('camera')}
-            className="group bg-slate-900 border border-slate-800 hover:border-emerald-500/30 p-6 rounded-2xl text-left space-y-4 transition-all hover:shadow-2xl hover:shadow-emerald-500/5 hover:-translate-y-1"
+            className="w-full group bg-slate-900 border border-slate-800 hover:border-emerald-500/30 p-6 rounded-2xl text-left space-y-4 transition-all hover:shadow-2xl hover:shadow-emerald-500/5 hover:-translate-y-1"
           >
             <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center group-hover:bg-emerald-650 group-hover:text-white transition-all">
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">Camera Operator</h3>
+              <h3 className="text-lg font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">Camera Operator Portal</h3>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                 Connect mobile camera browser directly. Toggles audio/video feed, flips lenses, shows battery level, and handles connectivity.
               </p>
