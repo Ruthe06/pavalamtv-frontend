@@ -23,6 +23,12 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [showCamDropdown, setShowCamDropdown] = useState(false);
   const [cameraStreams, setCameraStreams] = useState({});
 
+  // Overlay state sync (TV Logo, Ticker news box, and Lower Thirds)
+  const [logoEnabled, setLogoEnabled] = useState(true);
+  const [logoText, setLogoText] = useState('PAVALAM TV');
+  const [ticker, setTicker] = useState({ enabled: true, text: 'Welcome to PAVALAM TV Devotional Broadcast' });
+  const [lowerThird, setLowerThird] = useState({ enabled: false, name: '', role: '' });
+
   // Live Wishes / Chat Board
   const [wishes, setWishes] = useState([
     { id: 1, name: 'Palani Kumar', text: 'ஸ்ரீ பவளம்மன் துணை! நேரலை அருமை 🙏' },
@@ -69,6 +75,13 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
       setEventTitle(roomState.title || 'PAVALAM TV Live Broadcast');
       setEventDescription(roomState.description || 'Welcome to our multi-camera live telecast.');
       
+      if (roomState.ticker) setTicker(roomState.ticker);
+      if (roomState.lowerThird) setLowerThird(roomState.lowerThird);
+      if (roomState.graphics) {
+        setLogoEnabled(roomState.graphics.logoEnabled !== false);
+        setLogoText(roomState.graphics.logoText || 'PAVALAM TV');
+      }
+
       const activeCams = roomState.cameras || {};
       setCameras(activeCams);
       
@@ -105,6 +118,22 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     // Real-time viewer count sync
     socket.on('viewer-count-updated', (count) => {
       setViewerCount(count || 1);
+    });
+
+    // Sync Graphics overlays
+    socket.on('ticker-updated', (tickerData) => {
+      setTicker(tickerData || { enabled: false, text: '' });
+    });
+
+    socket.on('lower-third-updated', (ltData) => {
+      setLowerThird(ltData || { enabled: false, name: '', role: '' });
+    });
+
+    socket.on('graphics-updated', (graphicsData) => {
+      if (graphicsData) {
+        setLogoEnabled(graphicsData.logoEnabled !== false);
+        setLogoText(graphicsData.logoText || 'PAVALAM TV');
+      }
     });
 
     // Real-time chat/wishes sync
@@ -486,6 +515,50 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                     ))}
                   </div>
                 )}
+
+                {/* TV Logo Watermark Overlay */}
+                {logoEnabled && (
+                  <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-slate-950/60 backdrop-blur-xs px-3 py-1.5 rounded-full border border-white/5 shadow-lg select-none pointer-events-none">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    <span className="text-[10px] font-extrabold tracking-wider text-slate-100 uppercase">{logoText} LIVE</span>
+                  </div>
+                )}
+
+                {/* Lower Third Guest overlay */}
+                {lowerThird?.enabled && lowerThird.name && (
+                  <div className="absolute bottom-32 left-4 z-20 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-4 py-2.5 rounded-2xl shadow-2xl max-w-xs animate-slide-in-up select-none pointer-events-none">
+                    <span className="text-[10px] font-extrabold tracking-widest text-indigo-400 uppercase">{lowerThird.role || 'GUEST'}</span>
+                    <h4 className="text-sm font-black text-slate-100 mt-0.5">{lowerThird.name}</h4>
+                  </div>
+                )}
+
+                {/* News Ticker Overlay ticker at absolute bottom */}
+                {ticker?.enabled && ticker.text && (
+                  <div className="absolute bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-900 py-2.5 overflow-hidden z-25 select-none pointer-events-none">
+                    <div className="whitespace-nowrap inline-block animate-marquee text-[11px] font-bold text-yellow-400 tracking-wide uppercase">
+                      {ticker.text} &nbsp; • &nbsp; {ticker.text} &nbsp; • &nbsp; {ticker.text}
+                    </div>
+                  </div>
+                )}
+
+                {/* Inline Styles for marquee animations */}
+                <style>{`
+                  @keyframes marquee {
+                    0% { transform: translate3d(0, 0, 0); }
+                    100% { transform: translate3d(-33.33%, 0, 0); }
+                  }
+                  .animate-marquee {
+                    display: inline-block;
+                    animation: marquee 25s linear infinite;
+                  }
+                  @keyframes slideInUp {
+                    from { transform: translateY(20px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                  }
+                  .animate-slide-in-up {
+                    animation: slideInUp 0.3s ease-out forwards;
+                  }
+                `}</style>
               </div>
             ) : (
               /* Broadcast Offline State */
