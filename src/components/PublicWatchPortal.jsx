@@ -19,6 +19,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [cameras, setCameras] = useState({});
   const [selectedCameraId, setSelectedCameraId] = useState(null);
   const [rotationAngle, setRotationAngle] = useState(0);
+  const [isMirrored, setIsMirrored] = useState(false);
 
   // Live Wishes / Chat Board
   const [wishes, setWishes] = useState([
@@ -140,6 +141,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   // Handle switching camera feeds when selectedCameraId changes
   useEffect(() => {
     setRotationAngle(0); // Reset rotation on camera swap
+    setIsMirrored(false); // Reset mirroring on camera swap
     if (status !== 'live' || !selectedCameraId) {
       closePeerConnection();
       return;
@@ -330,7 +332,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                   style={{
                     transform: `rotate(${rotationAngle}deg) ${
                       rotationAngle === 90 || rotationAngle === 270 ? 'scale(1.778)' : 'scale(1)'
-                    }`,
+                    } ${isMirrored ? 'scaleX(-1)' : 'scaleX(1)'}`,
                     transition: 'transform 0.3s ease-out'
                   }}
                 />
@@ -411,14 +413,26 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                 <p className="text-sm text-slate-400 leading-relaxed">{eventDescription}</p>
               </div>
 
-              {/* Control widgets (Rotate & Like) */}
-              <div className="flex gap-2 self-start">
+              {/* Control widgets (Rotate, Mirror & Like) */}
+              <div className="flex flex-wrap gap-2 self-start">
                 <button
                   type="button"
                   onClick={() => setRotationAngle(prev => (prev + 90) % 360)}
                   className="flex items-center gap-1.5 bg-slate-950 border border-slate-855 hover:bg-slate-850 text-slate-300 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all"
                 >
                   🔄 Rotate ({rotationAngle}°)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMirrored(prev => !prev)}
+                  className={`flex items-center gap-1.5 border px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                    isMirrored
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 font-extrabold'
+                      : 'bg-slate-950 border-slate-855 text-slate-350 hover:bg-slate-850'
+                  }`}
+                >
+                  ↔️ Mirror ({isMirrored ? 'ON' : 'OFF'})
                 </button>
 
                 <button
