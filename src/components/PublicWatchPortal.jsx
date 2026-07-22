@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { Tv, Play, Radio, Calendar, Heart, ShieldAlert, Users, MessageSquare, Send, Share2, Check, Smile, Video } from 'lucide-react';
+import { Tv, Radio, Calendar, Heart, ShieldAlert, Users, MessageSquare, Send, Share2, Check, Smile, Volume2, VolumeX } from 'lucide-react';
 
 export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [eventCode] = useState(initialEventCode || 'PV-101');
@@ -14,10 +14,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [hasLiked, setHasLiked] = useState(false);
   const [viewerCount, setViewerCount] = useState(1);
   const [isStreamActive, setIsStreamActive] = useState(false);
-
-  // Cameras List
-  const [cameras, setCameras] = useState({});
-  const [selectedCameraId, setSelectedCameraId] = useState(null);
+  const [isMuted, setIsMuted] = useState(true);
 
   // Live Wishes / Chat Board
   const [wishes, setWishes] = useState([
@@ -31,14 +28,10 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
   const socketRef = useRef(null);
   const videoRef = useRef(null);
-  const peerConnectionRef = useRef(null);
-  const selectedCameraIdRef = useRef(null);
+  const mediaSourceRef = useRef(null);
+  const sourceBufferRef = useRef(null);
+  const queueRef = useRef([]);
   const chatEndRef = useRef(null);
-
-  // Sync ref to allow listener callbacks to always read the latest selected camera ID
-  useEffect(() => {
-    selectedCameraIdRef.current = selectedCameraId;
-  }, [selectedCameraId]);
 
   useEffect(() => {
     // Socket initialization
@@ -63,16 +56,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     socket.on('room-state', (roomState) => {
       setStatus(roomState.status);
       setEventTitle(roomState.title || 'PAVALAM TV Live Broadcast');
-      setEventDescription(roomState.description || 'Welcome to our multi-camera live telecast.');
-      
-      const activeCams = roomState.cameras || {};
-      setCameras(activeCams);
-      
-      // Auto select first camera if none selected
-      const activeIds = Object.keys(activeCams);
-      if (activeIds.length > 0 && !selectedCameraIdRef.current) {
-        setSelectedCameraId(activeIds[0]);
-      }
+      setEventDescription(roomState.description || 'Welcome to our live telecast.');
     });
 
     socket.on('event-status-changed', ({ status: nextStatus, title, description }) => {
@@ -80,21 +64,6 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
       if (title) setEventTitle(title);
       if (description) setEventDescription(description);
       if (nextStatus !== 'live') {
-        setIsStreamActive(false);
-      }
-    });
-
-    socket.on('cameras-updated', (updatedCameras) => {
-      setCameras(updatedCameras || {});
-      const activeIds = Object.keys(updatedCameras || {});
-      
-      // Auto select first if selected camera got disconnected
-      if (activeIds.length > 0) {
-        if (!selectedCameraIdRef.current || !updatedCameras[selectedCameraIdRef.current]) {
-          setSelectedCameraId(activeIds[0]);
-        }
-      } else {
-        setSelectedCameraId(null);
         setIsStreamActive(false);
       }
     });
@@ -109,109 +78,75 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
       setWishes(prev => [...prev, newWish]);
     });
 
-    // WebRTC signaling relay handling from camera operator
-    socket.on('webrtc-signal', async ({ senderSocketId, signal }) => {
-      if (senderSocketId !== selectedCameraIdRef.current) return;
-      const pc = peerConnectionRef.current;
-      if (!pc) return;
-
-      if (signal.type === 'answer') {
-        try {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal));
-        } catch (e) {
-          console.error('Error setting remote description:', e);
-        }
-      } else if (signal.candidate) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(signal));
-        } catch (e) {
-          console.error('Error adding ICE candidate:', e);
+    // Listen to real-time WebM stream chunks relayed from Host Console
+    socket.on('viewer-stream-chunk', (chunk) => {
+      setIsStreamActive(true);
+      const arrayBuffer = new Uint8Array(chunk);
+      const sb = sourceBufferRef.current;
+      
+      if (sb) {
+        if (!sb.updating && queueRef.current.length === 0) {
+          try {
+            sb.appendBuffer(arrayBuffer);
+          } catch (e) {
+            console.error('Error appending WebM stream chunk directly:', e);
+          }
+        } else {
+          queueRef.current.push(arrayBuffer);
         }
       }
     });
 
     return () => {
       socket.disconnect();
-      closePeerConnection();
     };
   }, [eventCode]);
 
-  // Handle switching camera feeds when selectedCameraId changes
+  // Initialize MediaSource Extensions (MSE) pipeline to pipe WebSockets binary chunks to native video player
   useEffect(() => {
-    if (status !== 'live' || !selectedCameraId) {
-      closePeerConnection();
-      return;
-    }
+    if (status !== 'live' || !videoRef.current) return;
 
-    initiateWebRTCConnection(selectedCameraId);
+    const mediaSource = new MediaSource();
+    mediaSourceRef.current = mediaSource;
+    videoRef.current.src = URL.createObjectURL(mediaSource);
+
+    const onSourceOpen = () => {
+      try {
+        if (mediaSource.sourceBuffers.length > 0) return; // Prevent duplicate additions
+        
+        // Create Ebml decoder buffer with vp8 video & opus audio codec support
+        const sb = mediaSource.addSourceBuffer('video/webm; codecs="vp8,opus"');
+        sourceBufferRef.current = sb;
+
+        sb.addEventListener('updateend', () => {
+          if (queueRef.current.length > 0 && !sb.updating) {
+            const nextChunk = queueRef.current.shift();
+            try {
+              sb.appendBuffer(nextChunk);
+            } catch (e) {
+              console.error('Error appending queued chunk:', e);
+            }
+          }
+        });
+      } catch (e) {
+        console.error('Failed to register MediaSource source buffer:', e);
+      }
+    };
+
+    mediaSource.addEventListener('sourceopen', onSourceOpen);
 
     return () => {
-      closePeerConnection();
-    };
-  }, [selectedCameraId, status]);
-
-  const closePeerConnection = () => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
-    setIsStreamActive(false);
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  const initiateWebRTCConnection = async (targetId) => {
-    closePeerConnection();
-    console.log(`Connecting WebRTC direct link to camera angle: ${targetId}`);
-
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    });
-    peerConnectionRef.current = pc;
-
-    // Handle incoming stream tracks
-    pc.ontrack = (event) => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = event.streams[0];
-        setIsStreamActive(true);
-        console.log('Direct camera WebRTC video track attached');
+      if (mediaSource.readyState === 'open') {
+        try {
+          mediaSource.endOfStream();
+        } catch (e) {}
       }
+      mediaSource.removeEventListener('sourceopen', onSourceOpen);
+      mediaSourceRef.current = null;
+      sourceBufferRef.current = null;
+      queueRef.current = [];
     };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
-        socketRef.current.emit('webrtc-signal', {
-          targetSocketId: targetId,
-          signal: event.candidate
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log(`WebRTC Connection State to Camera ${targetId}: ${pc.connectionState}`);
-      if (pc.connectionState === 'connected') {
-        setIsStreamActive(true);
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        setIsStreamActive(false);
-      }
-    };
-
-    // Create and send WebRTC SDP offer
-    try {
-      const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
-      await pc.setLocalDescription(offer);
-      
-      if (socketRef.current) {
-        socketRef.current.emit('webrtc-signal', {
-          targetSocketId: targetId,
-          signal: { type: 'offer', sdp: offer.sdp }
-        });
-      }
-    } catch (e) {
-      console.error('Failed to create WebRTC offer:', e);
-    }
-  };
+  }, [status]);
 
   // Scroll wishes to bottom when updated
   useEffect(() => {
@@ -258,8 +193,23 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
   const shareToWhatsApp = () => {
     const link = `${window.location.origin}/?role=viewer&code=${eventCode}`;
-    const text = encodeURIComponent(`🔴 Watch "${eventTitle}" live from multiple camera angles! Switch views instantly. Join: `);
+    const text = encodeURIComponent(`🔴 Watch "${eventTitle}" live on PAVALAM TV! Click link: `);
     window.open(`https://api.whatsapp.com/send?text=${text}${encodeURIComponent(link)}`, '_blank');
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handlePlayOverlayClick = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      setIsMuted(false);
+      videoRef.current.play().catch(err => console.warn('Overlay play failed:', err));
+    }
   };
 
   return (
@@ -277,7 +227,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
           </div>
           <div>
             <h1 className="text-base font-extrabold text-slate-200 tracking-tight flex items-center gap-2">
-              PAVALAM TV <span className="text-[10px] text-rose-500 border border-rose-500/20 px-1.5 py-0.5 rounded bg-rose-500/5">MULTI-ANGLE</span>
+              PAVALAM TV <span className="text-[10px] text-rose-500 border border-rose-500/20 px-1.5 py-0.5 rounded bg-rose-500/5">LIVE WATCH PORTAL</span>
             </h1>
           </div>
         </div>
@@ -299,27 +249,42 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
       {/* Main Watch Layout Container */}
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 md:p-8 max-w-[1400px] mx-auto w-full relative z-10">
         
-        {/* Left 2 Columns: Video Player & Angle Selection */}
+        {/* Left 2 Columns: Video Player & Details */}
         <div className="lg:col-span-2 space-y-6 flex flex-col justify-start">
           
           {/* Video Player Frame */}
           <div className="w-full bg-slate-950 border border-slate-900 rounded-3xl overflow-hidden aspect-video shadow-2xl relative group">
-            {status === 'live' && selectedCameraId ? (
+            {status === 'live' ? (
               <div className="w-full h-full bg-black relative">
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   controls
+                  muted={isMuted}
                   className="w-full h-full object-contain"
                 />
                 
+                {isStreamActive && isMuted && (
+                  /* Autoplay Audio Block Banner */
+                  <button
+                    onClick={handlePlayOverlayClick}
+                    className="absolute bottom-16 left-6 right-6 bg-rose-650/90 hover:bg-rose-600 backdrop-blur-sm text-white px-5 py-3.5 rounded-2xl flex items-center justify-between text-xs font-extrabold shadow-2xl transition-all hover:scale-[1.01] active:scale-95 animate-bounce z-10"
+                  >
+                    <span className="flex items-center gap-2">
+                      <VolumeX className="w-4 h-4 text-rose-200 animate-pulse" />
+                      TAP TO UNMUTE LIVE BROADCAST 🔊
+                    </span>
+                    <span className="border border-white/20 bg-white/10 px-2.5 py-0.5 rounded text-[10px]">TAP</span>
+                  </button>
+                )}
+
                 {!isStreamActive && (
                   /* Connecting Stream State */
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-slate-950/95 z-10">
                     <div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Connecting Camera Angle...</span>
-                    <p className="text-[11px] text-slate-500 mt-2">Connecting peer-to-peer to operator device.</p>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Connecting Live Stream Feed...</span>
+                    <p className="text-[11px] text-slate-500 mt-2">Waiting for the host broadcast transmitter to push media packets.</p>
                   </div>
                 )}
               </div>
@@ -331,42 +296,11 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                 </div>
                 <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Broadcast Offline</span>
                 <p className="text-xs text-slate-500 max-w-sm mt-2.5 leading-relaxed">
-                  The live event is currently offline. When operators connect, you can watch and switch between live camera angles!
+                  The live stream is currently offline or waiting for the host to start. Please stay tuned or check back soon!
                 </p>
               </div>
             )}
           </div>
-
-          {/* Available Camera Angles switcher board */}
-          {status === 'live' && (
-            <div className="bg-[#0c1322] border border-slate-850 rounded-3xl p-5 space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Video className="w-4 h-4 text-rose-500" /> Switch Camera Angles
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {Object.keys(cameras).length === 0 ? (
-                  <span className="col-span-full text-xs text-slate-500 text-center py-2">
-                    No active cameras online. Waiting for operators to stream.
-                  </span>
-                ) : (
-                  Object.keys(cameras).filter(camId => !cameras[camId]?.hidden).map((camId) => (
-                    <button
-                      key={camId}
-                      onClick={() => setSelectedCameraId(camId)}
-                      className={`flex flex-col items-start gap-1 p-3 rounded-2xl border transition-all text-left ${
-                        selectedCameraId === camId
-                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-lg'
-                          : 'bg-slate-950/60 border-slate-850 text-slate-400 hover:border-slate-800 hover:text-slate-350'
-                      }`}
-                    >
-                      <span className="text-xs font-bold truncate w-full">🎥 {cameras[camId]?.name}</span>
-                      <span className="text-[10px] text-slate-500 truncate w-full">Network: {cameras[camId]?.network}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Stream Details Card */}
           <div className="w-full bg-[#0d1524] border border-slate-850 rounded-3xl p-6 space-y-4 shadow-xl">
@@ -375,13 +309,13 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center gap-1.5`}>
                     <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></span>
-                    LIVE WATCH PANEL
+                    LIVE STREAM
                   </span>
                   
                   <span className="text-slate-650 text-xs">•</span>
                   
                   <span className="text-xs text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded font-mono">
-                    Event: {eventCode}
+                    Code: {eventCode}
                   </span>
                 </div>
                 <h2 className="text-xl md:text-2xl font-extrabold text-slate-200 tracking-tight leading-tight">
@@ -391,17 +325,30 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
               </div>
 
               {/* Like widget */}
-              <button
-                onClick={handleLike}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all border self-start ${
-                  hasLiked
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-md shadow-rose-500/5'
-                    : 'bg-slate-950 border-slate-850 hover:bg-slate-850 text-slate-300'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                <span>Like ({likeCount})</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleMute}
+                  disabled={!isStreamActive}
+                  className={`p-3 rounded-2xl border text-xs font-bold transition-all ${
+                    isStreamActive
+                      ? 'bg-slate-950 border-slate-850 hover:bg-slate-850 text-slate-350 cursor-pointer'
+                      : 'bg-slate-900/50 border-slate-900 text-slate-600 cursor-not-allowed'
+                  }`}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                </button>
+                <button
+                  onClick={handleLike}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all border self-start ${
+                    hasLiked
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-md shadow-rose-500/5'
+                      : 'bg-slate-950 border-slate-850 hover:bg-slate-850 text-slate-300'
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                  <span>Like ({likeCount})</span>
+                </button>
+              </div>
             </div>
 
             {/* Social Share & Portal Info Grid */}
@@ -474,7 +421,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                   value={viewerName}
                   onChange={(e) => setViewerName(e.target.value)}
                   maxLength={25}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-2 text-xs text-slate-355 focus:outline-none focus:border-rose-500/50 placeholder-slate-700 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-2 text-xs text-slate-350 focus:outline-none focus:border-rose-500/50 placeholder-slate-700 transition-colors"
                 />
               </div>
               <div className="flex gap-2">
