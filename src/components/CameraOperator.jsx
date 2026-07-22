@@ -343,14 +343,19 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
   const handleZoomChange = async (val) => {
     try {
       const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-      if (videoTrack && zoomCapabilities) {
-        const min = zoomCapabilities.min || 1;
-        const max = zoomCapabilities.max || 4;
+      if (videoTrack) {
+        const min = zoomCapabilities?.min || 1;
+        const max = zoomCapabilities?.max || 8;
         const nextZoom = Math.min(Math.max(val, min), max);
-        await videoTrack.applyConstraints({
-          advanced: [{ zoom: nextZoom }]
-        });
-        setZoomLevel(nextZoom);
+        
+        try {
+          await videoTrack.applyConstraints({
+            advanced: [{ zoom: nextZoom }]
+          });
+          setZoomLevel(nextZoom);
+        } catch (e) {
+          setZoomLevel(nextZoom);
+        }
       }
     } catch (err) {
       console.warn('Failed to apply zoom constraints:', err);
@@ -477,11 +482,14 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
                   autoPlay
                   playsInline
                   muted
-                  className={`w-full h-full object-contain ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}
+                  className={`w-full h-full object-contain transition-transform duration-300`}
+                  style={{
+                    transform: `${facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)'} scale(${zoomLevel})`
+                  }}
                 />
 
-                {/* Hardware Zoom controls Overlay */}
-                {zoomCapabilities && (
+                {/* Camera Zoom controls Overlay (Always Visible) */}
+                {videoEnabled && (
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 z-10 bg-slate-950/70 backdrop-blur-md p-3.5 rounded-2xl border border-white/10 shadow-2xl">
                     <button
                       type="button"
