@@ -660,6 +660,25 @@ export default function HostConsole({ initialEventCode, onLeave, isCleanPreview 
     }
   };
 
+  const renameCamera = (cameraId, currentName) => {
+    const newName = prompt('Enter new camera name:', currentName);
+    if (newName && newName.trim() && socketRef.current) {
+      socketRef.current.emit('rename-camera', { cameraId, newName: newName.trim() });
+    }
+  };
+
+  const toggleCameraVisibility = (cameraId, currentHidden) => {
+    if (socketRef.current) {
+      socketRef.current.emit('toggle-camera-visibility', { cameraId, hidden: !currentHidden });
+    }
+  };
+
+  const removeCamera = (cameraId) => {
+    if (confirm('Are you sure you want to disconnect this camera operator?') && socketRef.current) {
+      socketRef.current.emit('remove-camera', { cameraId });
+    }
+  };
+
   const getFormatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
@@ -902,6 +921,34 @@ export default function HostConsole({ initialEventCode, onLeave, isCleanPreview 
                             <span className="text-[10px] font-mono text-slate-500">{cam.network} ({cam.battery}%)</span>
                           </div>
                           <span className="text-[10px] text-slate-500">{cam.device}</span>
+                          
+                          <div className="flex gap-1 mt-1.5 border-t border-slate-900 pt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => renameCamera(camId, cam.name)}
+                              className="text-[9px] text-slate-400 hover:text-slate-200 border border-slate-850 bg-slate-950 px-2 py-0.5 rounded transition-all"
+                            >
+                              Rename
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleCameraVisibility(camId, cam.hidden)}
+                              className={`text-[9px] px-2 py-0.5 rounded border transition-all ${
+                                cam.hidden
+                                  ? 'bg-rose-950 border-rose-900 text-rose-400 hover:bg-rose-900'
+                                  : 'bg-slate-950 border-slate-850 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {cam.hidden ? 'Show' : 'Hide'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeCamera(camId)}
+                              className="text-[9px] text-red-400 hover:text-red-300 border border-red-955/20 bg-red-950/10 px-2 py-0.5 rounded transition-all ml-auto"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
 
                         {/* Mixer controls */}
