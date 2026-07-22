@@ -422,9 +422,9 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
         <div className="lg:col-span-2 space-y-6 flex flex-col justify-start">
           
           {/* Video Player Frame */}
-          <div className="w-full bg-slate-950 border border-slate-900 rounded-3xl overflow-hidden aspect-video shadow-2xl relative group">
+          <div className="w-full bg-slate-950 border border-slate-900 rounded-3xl overflow-hidden shadow-2xl relative group flex flex-col">
             {status === 'live' && selectedCameraId ? (
-              <div className="w-full h-full bg-black relative">
+              <div className="w-full aspect-video bg-black relative overflow-hidden">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -486,9 +486,9 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                   </div>
                 )}
 
-                {/* Horizontal row of camera thumbnail boxes inside video player */}
+                {/* Horizontal row of camera thumbnail boxes inside video player (Shifted to bottom-14 for controls spacing) */}
                 {status === 'live' && Object.keys(cameraStreams).length > 0 && (
-                  <div className="absolute bottom-12 left-4 right-4 flex gap-3 overflow-x-auto p-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent rounded-2xl z-10 scrollbar-none">
+                  <div className="absolute bottom-14 left-4 right-4 flex gap-3 overflow-x-auto p-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent rounded-2xl z-10 scrollbar-none">
                     {Object.keys(cameras).filter(camId => !cameras[camId]?.hidden && cameraStreams[camId]).map((camId) => (
                       <div
                         key={camId}
@@ -531,38 +531,10 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                     <h4 className="text-sm font-black text-slate-100 mt-0.5">{lowerThird.name}</h4>
                   </div>
                 )}
-
-                {/* News Ticker Overlay ticker at absolute bottom */}
-                {ticker?.enabled && ticker.text && (
-                  <div className="absolute bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-900 py-2.5 overflow-hidden z-25 select-none pointer-events-none">
-                    <div className="whitespace-nowrap inline-block animate-marquee text-[11px] font-bold text-yellow-400 tracking-wide uppercase">
-                      {ticker.text} &nbsp; • &nbsp; {ticker.text} &nbsp; • &nbsp; {ticker.text}
-                    </div>
-                  </div>
-                )}
-
-                {/* Inline Styles for marquee animations */}
-                <style>{`
-                  @keyframes marquee {
-                    0% { transform: translate3d(0, 0, 0); }
-                    100% { transform: translate3d(-33.33%, 0, 0); }
-                  }
-                  .animate-marquee {
-                    display: inline-block;
-                    animation: marquee 25s linear infinite;
-                  }
-                  @keyframes slideInUp {
-                    from { transform: translateY(20px); opacity: 0; }
-                    to { transform: translateY(0); opacity: 1; }
-                  }
-                  .animate-slide-in-up {
-                    animation: slideInUp 0.3s ease-out forwards;
-                  }
-                `}</style>
               </div>
             ) : (
               /* Broadcast Offline State */
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-[#0c121e]">
+              <div className="w-full aspect-video bg-[#0c121e] flex flex-col items-center justify-center text-center p-6 relative">
                 <div className="p-5 bg-[#121b2d] rounded-full border border-slate-800 animate-pulse mb-4">
                   <Tv className="w-14 h-14 text-slate-500" />
                 </div>
@@ -572,7 +544,36 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                 </p>
               </div>
             )}
+
+            {/* News Ticker Overlay ticker at absolute bottom (Moved outside video player for clear controls view) */}
+            {ticker?.enabled && ticker.text && (
+              <div className="w-full bg-[#0a0f19] border-t border-slate-900 py-3.5 overflow-hidden select-none pointer-events-none">
+                <div className="whitespace-nowrap inline-block animate-marquee text-[11px] font-bold text-yellow-400 tracking-wide uppercase">
+                  {ticker.text} &nbsp; • &nbsp; {ticker.text} &nbsp; • &nbsp; {ticker.text}
+                </div>
+              </div>
+            )}
+
+            {/* Inline Styles for marquee animations */}
+            <style>{`
+              @keyframes marquee {
+                0% { transform: translate3d(0, 0, 0); }
+                100% { transform: translate3d(-33.33%, 0, 0); }
+              }
+              .animate-marquee {
+                display: inline-block;
+                animation: marquee 25s linear infinite;
+              }
+              @keyframes slideInUp {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+              }
+              .animate-slide-in-up {
+                animation: slideInUp 0.3s ease-out forwards;
+              }
+            `}</style>
           </div>
+
 
 
 
