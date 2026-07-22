@@ -32,6 +32,10 @@ export default function App() {
       setEventCode('PV-101');
       setAuthPassword('admin123');
       setSelectedRole('admin');
+    } else if (path === '/host') {
+      setEventCode('PV-101');
+      setAuthPassword('host123');
+      setSelectedRole('host');
     }
   }, []);
 

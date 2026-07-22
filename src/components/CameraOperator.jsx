@@ -1,13 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { Camera, CameraOff, Mic, MicOff, Wifi, Battery, RefreshCw, LogOut, Radio, Info, Zap } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff, Wifi, Battery, RefreshCw, LogOut, Radio, Info, Zap, Users, ZoomIn, ZoomOut } from 'lucide-react';
 
 export default function CameraOperator({ initialEventCode, onLeave }) {
-  const [eventCode, setEventCode] = useState(initialEventCode || '');
+  const [eventCode, setEventCode] = useState(initialEventCode || 'PV-101');
   const [cameraName, setCameraName] = useState('');
   const [isJoined, setIsJoined] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
+  
+  // Real-time viewer count & comments HUD
+  const [viewerCount, setViewerCount] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomCapabilities, setZoomCapabilities] = useState(null);
+  const [operatorComments, setOperatorComments] = useState([]);
+
   const [facingMode, setFacingMode] = useState('user'); // user = front, environment = back
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [hasTorch, setHasTorch] = useState(false);
@@ -95,15 +102,22 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
         localVideoRef.current.srcObject = stream;
       }
 
-      // Check for flashlight/torch capability
+      // Check for flashlight/torch & zoom capability
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         setTimeout(() => {
           try {
             const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
             setHasTorch(!!capabilities.torch);
+            if (capabilities.zoom) {
+              setZoomCapabilities(capabilities.zoom);
+              setZoomLevel(capabilities.zoom.value || 1);
+            } else {
+              setZoomCapabilities(null);
+            }
           } catch (e) {
             setHasTorch(false);
+            setZoomCapabilities(null);
           }
         }, 500);
       }
@@ -208,6 +222,19 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
       }
     });
 
+    socket.on('viewer-count-updated', (count) => {
+      setViewerCount(count || 0);
+    });
+
+    socket.on('receive-chat-msg', (newWish) => {
+      const id = Date.now() + Math.random();
+      const comment = { id, name: newWish.name, text: newWish.text };
+      setOperatorComments(prev => [...prev, comment]);
+      setTimeout(() => {
+        setOperatorComments(prev => prev.filter(c => c.id !== id));
+      }, 5000);
+    });
+
     socket.on('connect_error', () => {
       setStatusMessage('Signaling Server Unreachable. Connecting locally...');
       setIsConnecting(false);
@@ -310,6 +337,23 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
     startCamera(nextMode);
     if (socketRef.current) {
       socketRef.current.emit('update-camera-status', { isFront: nextMode === 'user' });
+    }
+  };
+
+  const handleZoomChange = async (val) => {
+    try {
+      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (videoTrack && zoomCapabilities) {
+        const min = zoomCapabilities.min || 1;
+        const max = zoomCapabilities.max || 4;
+        const nextZoom = Math.min(Math.max(val, min), max);
+        await videoTrack.applyConstraints({
+          advanced: [{ zoom: nextZoom }]
+        });
+        setZoomLevel(nextZoom);
+      }
+    } catch (err) {
+      console.warn('Failed to apply zoom constraints:', err);
     }
   };
 
@@ -418,6 +462,11 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
             </div>
 
             <div className="flex items-center gap-3 bg-slate-950/40 backdrop-blur-md rounded-full px-3 py-1.5 border border-white/5 text-xs">
+              <div className="flex items-center gap-1 text-rose-400 font-bold">
+                <Users className="w-3.5 h-3.5" />
+                <span>{viewerCount} Live</span>
+              </div>
+              <span className="w-px h-3 bg-white/10"></span>
               <div className="flex items-center gap-1 text-slate-300">
                 <Battery className="w-4 h-4 text-emerald-400" />
                 <span>{batteryLevel}%</span>
@@ -433,13 +482,49 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
           {/* Full Screen Live Viewport */}
           <div className="flex-1 bg-black flex items-center justify-center relative overflow-hidden">
             {videoEnabled ? (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-contain ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}
-              />
+              <div className="w-full h-full relative flex items-center justify-center">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-contain ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}
+                />
+
+                {/* Hardware Zoom controls Overlay */}
+                {zoomCapabilities && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 z-10 bg-slate-950/70 backdrop-blur-md p-3.5 rounded-2xl border border-white/10 shadow-2xl">
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(zoomLevel + 0.5)}
+                      className="p-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-white transition-all active:scale-95 shadow-md shadow-blue-500/20"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </button>
+                    <span className="text-[10px] text-slate-300 font-extrabold font-mono tracking-wider">{zoomLevel.toFixed(1)}x</span>
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(zoomLevel - 0.5)}
+                      className="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-all active:scale-95"
+                    >
+                      <ZoomOut className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Disappearing Live wishes HUD overlay (Auto delete in 5s) */}
+                <div className="absolute bottom-4 left-4 max-w-[280px] flex flex-col gap-2 z-10 pointer-events-none">
+                  {operatorComments.map((comment) => (
+                    <div 
+                      key={comment.id} 
+                      className="bg-slate-950/80 backdrop-blur-sm border border-slate-805 p-3 rounded-xl text-xs text-slate-200 shadow-xl transition-all duration-350 animate-fade-in"
+                    >
+                      <span className="font-extrabold text-blue-400 block mb-0.5">{comment.name}</span>
+                      <p className="leading-relaxed text-[11px]">{comment.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 text-slate-500">
                 <CameraOff className="w-16 h-16" />
