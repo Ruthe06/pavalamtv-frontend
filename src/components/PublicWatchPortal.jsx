@@ -18,6 +18,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   // Cameras List
   const [cameras, setCameras] = useState({});
   const [selectedCameraId, setSelectedCameraId] = useState(null);
+  const [rotationAngle, setRotationAngle] = useState(0);
 
   // Live Wishes / Chat Board
   const [wishes, setWishes] = useState([
@@ -138,6 +139,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
   // Handle switching camera feeds when selectedCameraId changes
   useEffect(() => {
+    setRotationAngle(0); // Reset rotation on camera swap
     if (status !== 'live' || !selectedCameraId) {
       closePeerConnection();
       return;
@@ -312,6 +314,10 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                   playsInline
                   controls
                   className="w-full h-full object-contain"
+                  style={{
+                    transform: `rotate(${rotationAngle}deg)`,
+                    transition: 'transform 0.3s ease-out'
+                  }}
                 />
                 
                 {!isStreamActive && (
@@ -390,18 +396,28 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                 <p className="text-sm text-slate-400 leading-relaxed">{eventDescription}</p>
               </div>
 
-              {/* Like widget */}
-              <button
-                onClick={handleLike}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all border self-start ${
-                  hasLiked
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-md shadow-rose-500/5'
-                    : 'bg-slate-950 border-slate-850 hover:bg-slate-850 text-slate-300'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-                <span>Like ({likeCount})</span>
-              </button>
+              {/* Control widgets (Rotate & Like) */}
+              <div className="flex gap-2 self-start">
+                <button
+                  type="button"
+                  onClick={() => setRotationAngle(prev => (prev + 90) % 360)}
+                  className="flex items-center gap-1.5 bg-slate-950 border border-slate-855 hover:bg-slate-850 text-slate-300 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all"
+                >
+                  🔄 Rotate ({rotationAngle}°)
+                </button>
+
+                <button
+                  onClick={handleLike}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
+                    hasLiked
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 shadow-md shadow-rose-500/5'
+                      : 'bg-slate-950 border-slate-850 hover:bg-slate-850 text-slate-300'
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                  <span>Like ({likeCount})</span>
+                </button>
+              </div>
             </div>
 
             {/* Social Share & Portal Info Grid */}
