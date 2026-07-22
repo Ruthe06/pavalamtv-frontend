@@ -159,12 +159,18 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     if (selectedCameraId && cameras[selectedCameraId]) {
       const cam = cameras[selectedCameraId];
       if (cam.angle !== undefined) {
-        if (cam.angle === 90 || cam.angle === 270) {
-          setRotationAngle(cam.angle);
-        } else if (cam.angle === 180) {
-          setRotationAngle(180);
-        } else {
+        if (cam.angle === 90) {
+          // Landscape Left: Correct horizontal, no rotation needed
           setRotationAngle(0);
+        } else if (cam.angle === 270) {
+          // Landscape Right (Upside down): Rotate 180 to correct
+          setRotationAngle(180);
+        } else if (cam.angle === 180) {
+          // Portrait Inverted: Rotate 270 to align landscape
+          setRotationAngle(270);
+        } else {
+          // Portrait Upright (0): Rotate 90 to align landscape
+          setRotationAngle(90);
         }
       }
     }
