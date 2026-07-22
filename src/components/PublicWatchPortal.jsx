@@ -21,6 +21,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [rotationAngle, setRotationAngle] = useState(0);
   const [isMirrored, setIsMirrored] = useState(false);
   const [showCamDropdown, setShowCamDropdown] = useState(false);
+  const [cameraStreams, setCameraStreams] = useState({});
 
   // Live Wishes / Chat Board
   const [wishes, setWishes] = useState([
@@ -34,7 +35,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
   const socketRef = useRef(null);
   const videoRef = useRef(null);
-  const peerConnectionRef = useRef(null);
+  const peerConnectionsRef = useRef({});
   const selectedCameraIdRef = useRef(null);
   const chatEndRef = useRef(null);
 
@@ -98,7 +99,6 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
         }
       } else {
         setSelectedCameraId(null);
-        setIsStreamActive(false);
       }
     });
 
@@ -114,8 +114,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
     // WebRTC signaling relay handling from camera operator
     socket.on('webrtc-signal', async ({ senderSocketId, signal }) => {
-      if (senderSocketId !== selectedCameraIdRef.current) return;
-      const pc = peerConnectionRef.current;
+      const pc = peerConnectionsRef.current[senderSocketId];
       if (!pc) return;
 
       if (signal.type === 'answer') {
@@ -135,7 +134,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
 
     return () => {
       socket.disconnect();
-      closePeerConnection();
+      closeAllConnections();
     };
   }, [eventCode]);
 
@@ -143,17 +142,38 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   useEffect(() => {
     setRotationAngle(0); // Reset rotation on camera swap
     setIsMirrored(false); // Reset mirroring on camera swap
-    if (status !== 'live' || !selectedCameraId) {
-      closePeerConnection();
+    
+    if (videoRef.current && cameraStreams[selectedCameraId]) {
+      videoRef.current.srcObject = cameraStreams[selectedCameraId];
+      setIsStreamActive(true);
+    } else {
+      setIsStreamActive(false);
+    }
+  }, [selectedCameraId, cameraStreams]);
+
+  // Handle WebRTC connections to all active cameras in parallel
+  useEffect(() => {
+    if (status !== 'live') {
+      closeAllConnections();
       return;
     }
 
-    initiateWebRTCConnection(selectedCameraId);
+    const activeIds = Object.keys(cameras || {});
 
-    return () => {
-      closePeerConnection();
-    };
-  }, [selectedCameraId, status]);
+    // Establish WebRTC link to any newly connected camera operators
+    activeIds.forEach(id => {
+      if (!peerConnectionsRef.current[id]) {
+        initiateWebRTCConnection(id);
+      }
+    });
+
+    // Disconnect and remove any camera operators that went offline
+    Object.keys(peerConnectionsRef.current).forEach(id => {
+      if (!cameras[id]) {
+        closeConnection(id);
+      }
+    });
+  }, [cameras, status]);
 
   // Auto-detect and align rotation based on operator's physical device orientation angle
   useEffect(() => {
@@ -177,32 +197,62 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     }
   }, [selectedCameraId, cameras]);
 
-  const closePeerConnection = () => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
+  const closeAllConnections = () => {
+    Object.keys(peerConnectionsRef.current).forEach(id => {
+      try {
+        peerConnectionsRef.current[id].close();
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    peerConnectionsRef.current = {};
+    setCameraStreams({});
     setIsStreamActive(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
   };
 
+  const closeConnection = (id) => {
+    if (peerConnectionsRef.current[id]) {
+      try {
+        peerConnectionsRef.current[id].close();
+      } catch (e) {
+        console.error(e);
+      }
+      delete peerConnectionsRef.current[id];
+    }
+    setCameraStreams(prev => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+  };
+
   const initiateWebRTCConnection = async (targetId) => {
-    closePeerConnection();
+    if (peerConnectionsRef.current[targetId]) return;
     console.log(`Connecting WebRTC direct link to camera angle: ${targetId}`);
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
-    peerConnectionRef.current = pc;
+    peerConnectionsRef.current[targetId] = pc;
 
     // Handle incoming stream tracks
     pc.ontrack = (event) => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = event.streams[0];
+      console.log(`Direct video track attached for camera: ${targetId}`);
+      const incomingStream = event.streams[0];
+      setCameraStreams(prev => ({
+        ...prev,
+        [targetId]: incomingStream
+      }));
+
+      // If this camera is the selected one, attach to main video player
+      if (targetId === selectedCameraIdRef.current) {
+        if (videoRef.current) {
+          videoRef.current.srcObject = incomingStream;
+        }
         setIsStreamActive(true);
-        console.log('Direct camera WebRTC video track attached');
       }
     };
 
@@ -216,11 +266,13 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log(`WebRTC Connection State to Camera ${targetId}: ${pc.connectionState}`);
-      if (pc.connectionState === 'connected') {
+      console.log(`WebRTC Connection State for Camera ${targetId}: ${pc.connectionState}`);
+      if (pc.connectionState === 'connected' && targetId === selectedCameraIdRef.current) {
         setIsStreamActive(true);
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        setIsStreamActive(false);
+        if (targetId === selectedCameraIdRef.current) {
+          setIsStreamActive(false);
+        }
       }
     };
 
@@ -402,6 +454,36 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                     <div className="w-12 h-12 border-4 border-rose-500 border-t-transparent rounded-full animate-spin mb-4"></div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Connecting Camera Angle...</span>
                     <p className="text-[11px] text-slate-500 mt-2">Connecting peer-to-peer to operator device.</p>
+                  </div>
+                )}
+
+                {/* Horizontal row of camera thumbnail boxes inside video player */}
+                {status === 'live' && Object.keys(cameraStreams).length > 0 && (
+                  <div className="absolute bottom-12 left-4 right-4 flex gap-3 overflow-x-auto p-2 bg-gradient-to-t from-black/80 via-black/30 to-transparent rounded-2xl z-10 scrollbar-none">
+                    {Object.keys(cameras).filter(camId => !cameras[camId]?.hidden && cameraStreams[camId]).map((camId) => (
+                      <div
+                        key={camId}
+                        onClick={() => setSelectedCameraId(camId)}
+                        className={`relative w-24 md:w-28 aspect-video bg-slate-900 rounded-xl overflow-hidden cursor-pointer flex-shrink-0 border-2 transition-all hover:scale-105 active:scale-95 ${
+                          selectedCameraId === camId ? 'border-rose-500 shadow-md shadow-rose-500/20' : 'border-slate-800 hover:border-slate-650'
+                        }`}
+                      >
+                        <video
+                          ref={(el) => {
+                            if (el) {
+                              el.srcObject = cameraStreams[camId];
+                            }
+                          }}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-slate-950/70 backdrop-blur-xs px-1.5 py-0.5 text-[9px] font-bold text-slate-300 truncate">
+                          {cameras[camId]?.name}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
