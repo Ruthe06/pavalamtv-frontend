@@ -251,6 +251,17 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     }
   };
 
+  const handleVideoResize = () => {
+    if (videoRef.current) {
+      const w = videoRef.current.videoWidth;
+      const h = videoRef.current.videoHeight;
+      if (w > 0 && h > 0 && w < h) {
+        // Auto rotate portrait feeds to landscape orientation
+        setRotationAngle(90);
+      }
+    }
+  };
+
   const sharePortalLink = () => {
     const link = `${window.location.origin}/?role=viewer&code=${eventCode}`;
     navigator.clipboard.writeText(link);
@@ -313,6 +324,8 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
                   autoPlay
                   playsInline
                   controls
+                  onLoadedMetadata={handleVideoResize}
+                  onResize={handleVideoResize}
                   className="w-full h-full object-contain"
                   style={{
                     transform: `rotate(${rotationAngle}deg) ${
