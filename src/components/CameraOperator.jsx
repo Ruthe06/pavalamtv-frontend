@@ -129,6 +129,33 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
     }
   };
 
+  const getOrientationAngle = () => {
+    if (screen.orientation) {
+      return screen.orientation.angle;
+    }
+    return window.orientation || 0;
+  };
+
+  useEffect(() => {
+    const handleOrientation = () => {
+      if (socketRef.current && isJoined) {
+        socketRef.current.emit('update-camera-status', { angle: getOrientationAngle() });
+      }
+    };
+
+    window.addEventListener('orientationchange', handleOrientation);
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', handleOrientation);
+    }
+
+    return () => {
+      window.removeEventListener('orientationchange', handleOrientation);
+      if (screen.orientation) {
+        screen.orientation.removeEventListener('change', handleOrientation);
+      }
+    };
+  }, [isJoined]);
+
   const stopCamera = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
@@ -165,7 +192,8 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
           device: deviceInfo,
           isFront: facingMode === 'user',
           audioEnabled,
-          videoEnabled
+          videoEnabled,
+          angle: getOrientationAngle()
         }
       });
       setIsJoined(true);

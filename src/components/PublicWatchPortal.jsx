@@ -154,6 +154,22 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
     };
   }, [selectedCameraId, status]);
 
+  // Auto-detect and align rotation based on operator's physical device orientation angle
+  useEffect(() => {
+    if (selectedCameraId && cameras[selectedCameraId]) {
+      const cam = cameras[selectedCameraId];
+      if (cam.angle !== undefined) {
+        if (cam.angle === 90 || cam.angle === 270) {
+          setRotationAngle(cam.angle);
+        } else if (cam.angle === 180) {
+          setRotationAngle(180);
+        } else {
+          setRotationAngle(0);
+        }
+      }
+    }
+  }, [selectedCameraId, cameras]);
+
   const closePeerConnection = () => {
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
