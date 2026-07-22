@@ -409,7 +409,7 @@ export default function CameraOperator({ initialEventCode, onLeave }) {
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover transform -scale-x-100"
+                className={`w-full h-full object-contain ${facingMode === 'user' ? 'transform -scale-x-100' : ''}`}
               />
             ) : (
               <div className="flex flex-col items-center gap-2 text-slate-500">
