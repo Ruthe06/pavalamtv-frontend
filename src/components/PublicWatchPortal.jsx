@@ -30,11 +30,7 @@ export default function PublicWatchPortal({ initialEventCode, onLeave }) {
   const [lowerThird, setLowerThird] = useState({ enabled: false, name: '', role: '' });
 
   // Live Wishes / Chat Board
-  const [wishes, setWishes] = useState([
-    { id: 1, name: 'Palani Kumar', text: 'ஸ்ரீ பவளம்மன் துணை! நேரலை அருமை 🙏' },
-    { id: 2, name: 'Saraswathi', text: 'மிகவும் அருமையான ஒளிபரப்பு வாழ்த்துக்கள்!' },
-    { id: 3, name: 'Ramesh Krishnan', text: 'Om Namah Shivaya! Blessings from Chennai.' }
-  ]);
+  const [wishes, setWishes] = useState([]);
   const [viewerName, setViewerName] = useState('');
   const [wishText, setWishText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
