@@ -42,6 +42,9 @@ export default function App() {
   const handleRoleSelection = (role) => {
     setSelectedRole(role);
     setStatusMessage('');
+    if (role === 'camera') {
+      setEventCode('PV-101');
+    }
   };
 
   const handleLogin = (e) => {
